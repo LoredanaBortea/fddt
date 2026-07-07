@@ -1,0 +1,64 @@
+import random
+
+W = 16
+BERGER_K = W.bit_length()
+TRIALS = 100000
+
+def parity(x):
+    return bin(x).count("1") & 1
+
+def berger(x):
+    return W - bin(x).count("1")
+
+def flip_bits(x, positions):
+    for p in positions:
+        x ^= 1 << p
+    return x
+
+def err_single(x):
+    return flip_bits(x, [random.randrange(W)])
+
+def err_double(x):
+    return flip_bits(x, random.sample(range(W), 2))
+
+def err_burst(x):
+    length = random.randint(2, 4)
+    start = random.randrange(W - length + 1)
+    return flip_bits(x, range(start, start + length))
+
+def err_unidirectional(x):
+    ones = [i for i in range(W) if (x >> i) & 1]
+    if not ones:
+        return x
+    n = random.randint(1, min(4, len(ones)))
+    return flip_bits(x, random.sample(ones, n))
+
+MODELS = [
+    ("single", err_single),
+    ("double", err_double),
+    ("burst", err_burst),
+    ("unidirectional", err_unidirectional),
+]
+
+def run():
+    print(f"word width      : {W} bits")
+    print(f"parity overhead : 1 check bit ({100 / W:.2f}%)")
+    print(f"berger overhead : {BERGER_K} check bits ({100 * BERGER_K / W:.2f}%)")
+    print(f"trials per model: {TRIALS}\n")
+    print(f"{'error model':<16}{'parity det.':>12}{'berger det.':>12}")
+    for name, inject in MODELS:
+        det_p = det_b = injected = 0
+        for _ in range(TRIALS):
+            data = random.getrandbits(W)
+            cp, cb = parity(data), berger(data)
+            bad = inject(data)
+            if bad == data:
+                continue
+            injected += 1
+            det_p += parity(bad) != cp
+            det_b += berger(bad) != cb
+        print(f"{name:<16}{100 * det_p / injected:>11.2f}%{100 * det_b / injected:>11.2f}%")
+
+if __name__ == "__main__":
+    random.seed(1)
+    run()
